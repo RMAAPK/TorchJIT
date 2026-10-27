@@ -1,21 +1,14 @@
 """
-Universal Zero-Dependency Storage & Registry Provider for TorchJIT
-Designed as a 1:1 drop-in replacement for PyTorch.
-
-Modes:
-1. Pure Local (Default): Zero server/network needed. Uses local SQLite/file cache in ~/.tjit/
-2. Remote Tx Pooler (Opt-in): When DATABASE_URL is set, connects to PgBouncer/Postgres.
+Universal Zero-Storage Registry for TorchJIT & UPAAS
+Role: Database strictly keeps CIDs (hashes), chunk indices, and decryption keys.
+ZERO tensor bytes are ever saved in the DB.
+All weights live permanently on the global IPFS distributed network.
 """
 import os
 import sqlite3
 from typing import Optional, List, Dict, Any
 
 class StatePooler:
-    """
-    Unified state pooler.
-    If no DATABASE_URL is provided, defaults silently to local embedded SQLite (~/.tjit/registry.db).
-    Anyone importing torchjit locally has 0 database setup overhead!
-    """
     def __init__(self, database_url: Optional[str] = None):
         self.database_url = database_url or os.environ.get("DATABASE_URL", "")
         self.is_remote = bool(self.database_url and self.database_url.startswith("postgres"))
@@ -28,7 +21,6 @@ class StatePooler:
             self._init_local_db()
 
     def _init_local_db(self):
-        """Zero-setup local SQLite fallback."""
         os.makedirs(os.path.dirname(self.local_db_path), exist_ok=True)
         with sqlite3.connect(self.local_db_path) as conn:
             cur = conn.cursor()
@@ -39,6 +31,7 @@ class StatePooler:
                 layer_index INTEGER NOT NULL,
                 chunk_index INTEGER NOT NULL,
                 cid TEXT NOT NULL,
+                decryption_key TEXT,
                 byte_size INTEGER NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(model_id, layer_index, chunk_index)
@@ -48,7 +41,6 @@ class StatePooler:
             conn.commit()
 
     def _init_remote_pool(self):
-        """Remote PostgreSQL Transaction Pooler (Port 6543 / PgBouncer)."""
         try:
             import psycopg2
             from psycopg2 import pool
@@ -58,23 +50,23 @@ class StatePooler:
                 dsn=self.database_url
             )
         except Exception as e:
-            print(f"[TorchJIT Pooler] Remote pooler connection failed: {e}. Falling back to local offline DB.")
+            print(f"[TorchJIT Pooler] Remote pooler failed: {e}. Falling back to local offline DB.")
             self.is_remote = False
             self._init_local_db()
 
-    def register_cid_chunk(self, model_id: str, layer_idx: int, chunk_idx: int, cid: str, byte_size: int):
-        """Save a 1-3 MB chunk record (works offline or online)."""
+    def register_chunk_hash(self, model_id: str, layer_idx: int, chunk_idx: int, cid: str, byte_size: int, dec_key: str = None):
+        """Save ONLY the IPFS CID hash and decryption key into the database."""
         if self.is_remote and self._pg_pool:
             conn = self._pg_pool.getconn()
             try:
                 with conn.cursor() as cur:
                     query = """
-                    INSERT INTO model_chunks (model_id, layer_index, chunk_index, cid, byte_size)
-                    VALUES (%s, %s, %s, %s, %s)
+                    INSERT INTO model_chunks (model_id, layer_index, chunk_index, cid, decryption_key, byte_size)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     ON CONFLICT (model_id, layer_index, chunk_index) 
-                    DO UPDATE SET cid = EXCLUDED.cid, byte_size = EXCLUDED.byte_size;
+                    DO UPDATE SET cid = EXCLUDED.cid, decryption_key = EXCLUDED.decryption_key, byte_size = EXCLUDED.byte_size;
                     """
-                    cur.execute(query, (model_id, layer_idx, chunk_idx, cid, byte_size))
+                    cur.execute(query, (model_id, layer_idx, chunk_idx, cid, dec_key, byte_size))
                 conn.commit()
             finally:
                 self._pg_pool.putconn(conn)
@@ -82,22 +74,22 @@ class StatePooler:
             with sqlite3.connect(self.local_db_path) as conn:
                 cur = conn.cursor()
                 cur.execute("""
-                INSERT INTO model_chunks (model_id, layer_index, chunk_index, cid, byte_size)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO model_chunks (model_id, layer_index, chunk_index, cid, decryption_key, byte_size)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(model_id, layer_index, chunk_index)
-                DO UPDATE SET cid=excluded.cid, byte_size=excluded.byte_size;
-                """, (model_id, layer_idx, chunk_idx, cid, byte_size))
+                DO UPDATE SET cid=excluded.cid, decryption_key=excluded.decryption_key, byte_size=excluded.byte_size;
+                """, (model_id, layer_idx, chunk_idx, cid, dec_key, byte_size))
                 conn.commit()
 
-    def get_layer_chunks(self, model_id: str, layer_idx: int) -> List[Dict[str, Any]]:
-        """Query chunk CIDs without needing any external server running."""
+    def get_layer_manifest(self, model_id: str, layer_idx: int) -> List[Dict[str, Any]]:
+        """Fetch the list of IPFS CIDs and decryption keys needed to stream a layer."""
         if self.is_remote and self._pg_pool:
             from psycopg2.extras import RealDictCursor
             conn = self._pg_pool.getconn()
             try:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
                     cur.execute("""
-                    SELECT chunk_index, cid, byte_size FROM model_chunks
+                    SELECT chunk_index, cid, decryption_key, byte_size FROM model_chunks
                     WHERE model_id = %s AND layer_index = %s ORDER BY chunk_index ASC;
                     """, (model_id, layer_idx))
                     return [dict(r) for r in cur.fetchall()]
@@ -108,10 +100,12 @@ class StatePooler:
                 conn.row_factory = sqlite3.Row
                 cur = conn.cursor()
                 cur.execute("""
-                SELECT chunk_index, cid, byte_size FROM model_chunks
+                SELECT chunk_index, cid, decryption_key, byte_size FROM model_chunks
                 WHERE model_id = ? AND layer_index = ? ORDER BY chunk_index ASC;
                 """, (model_id, layer_idx))
                 return [dict(r) for r in cur.fetchall()]
 
-# Alias for backwards compatibility
+# Aliases
+StatePooler.register_cid_chunk = StatePooler.register_chunk_hash
+StatePooler.get_layer_chunks = StatePooler.get_layer_manifest
 TransactionPooler = StatePooler
