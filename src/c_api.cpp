@@ -3,35 +3,28 @@
 
 extern "C" {
 
-struct CTensor {
-    void* handle;
-    float* data;
-    int64_t numel;
-    int64_t dim;
-    const int64_t* shape;
-};
-
-void* tjit_tensor_zeros(const int64_t* shape, int64_t dim) {
+void* tjit_tensor_zeros(int64_t dim, const int64_t* shape) {
     std::vector<int64_t> s(shape, shape + dim);
     auto t = new tjit::Tensor(tjit::Tensor::zeros(s));
     return static_cast<void*>(t);
 }
 
-void* tjit_tensor_ones(const int64_t* shape, int64_t dim) {
+void* tjit_tensor_ones(int64_t dim, const int64_t* shape) {
     std::vector<int64_t> s(shape, shape + dim);
     auto t = new tjit::Tensor(tjit::Tensor::ones(s));
     return static_cast<void*>(t);
 }
 
-void* tjit_tensor_load_mmap(const char* path, const int64_t* shape, int64_t dim) {
+void* tjit_tensor_load_mmap(const char* path, int64_t dim, const int64_t* shape) {
     std::vector<int64_t> s(shape, shape + dim);
     auto t = new tjit::Tensor(tjit::Tensor::load_mmap(path, s));
     return static_cast<void*>(t);
 }
 
-void tjit_tensor_save(void* handle, const char* path) {
+bool tjit_tensor_save(void* handle, const char* path) {
     auto t = static_cast<tjit::Tensor*>(handle);
     t->save(path);
+    return true;
 }
 
 void* tjit_tensor_matmul(void* a, void* b) {
@@ -48,6 +41,12 @@ void* tjit_tensor_add(void* a, void* b) {
     return static_cast<void*>(out);
 }
 
+void* tjit_tensor_silu(void* a) {
+    auto tA = static_cast<tjit::Tensor*>(a);
+    auto out = new tjit::Tensor(tA->silu());
+    return static_cast<void*>(out);
+}
+
 void* tjit_tensor_rmsnorm(void* a, float eps) {
     auto t = static_cast<tjit::Tensor*>(a);
     auto out = new tjit::Tensor(t->rms_norm(eps));
@@ -61,6 +60,18 @@ float* tjit_tensor_data_ptr(void* handle) {
 
 int64_t tjit_tensor_numel(void* handle) {
     return static_cast<tjit::Tensor*>(handle)->numel();
+}
+
+int64_t tjit_tensor_dim(void* handle) {
+    return static_cast<tjit::Tensor*>(handle)->dim();
+}
+
+void tjit_tensor_shape(void* handle, int64_t* out_shape) {
+    auto t = static_cast<tjit::Tensor*>(handle);
+    const auto& s = t->shape();
+    for (size_t i = 0; i < s.size(); ++i) {
+        out_shape[i] = s[i];
+    }
 }
 
 void tjit_tensor_cid(void* handle, char* out_buf, size_t max_len) {
