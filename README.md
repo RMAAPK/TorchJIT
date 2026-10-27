@@ -1,22 +1,33 @@
-# TorchJIT: Native Content-Addressed Tensor Engine & Decentralized JIT Fabric
-### Enterprise C++20 Sovereign Deep Learning Runtime
+# TorchJIT: Native Content-Addressed Tensor Engine & Distributed Inference Fabric
+### High-Performance C++20 Sovereign Deep Learning Runtime
 Personal Research & Hobby Project • Licensed under **MIT License**
 
 [![Engine](https://img.shields.io/badge/C%2B%2B%20Standard-C%2B%2B20%20ISO-ff4757?style=for-the-badge&logo=c%2B%2B)](include/torchjit)
-[![Storage](https://img.shields.io/badge/Storage-IPFS%20CIDv1%20Hashed-2ed573?style=for-the-badge&logo=ipfs)](https://ipfs.tech)
-[![Memory](https://img.shields.io/badge/Memory-POSIX%20Zero--Copy%20mmap-00d2d3?style=for-the-badge)](src/tensor.cpp)
+[![Storage](https://img.shields.io/badge/Storage-SMTF%20v3%20Aligned-2ed573?style=for-the-badge)](docs/ARCHITECTURE_v3.md)
+[![Memory](https://img.shields.io/badge/Memory-2MB%20Huge--Page%20mmap-00d2d3?style=for-the-badge)](src/tensor.cpp)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE.md)
 
 ---
 
 ## Executive Summary
-TorchJIT is a modern, high-performance C++20 tensor library built as a clean, lightweight replacement for PyTorch runtime bottlenecks. Designed specifically for distributed and sovereign intelligence, TorchJIT natively bridges virtual memory allocations with cryptographic **Content Identifiers (CIDv1)** and decentralized **IPFS** networks.
+TorchJIT is a modern, high-performance C++20 tensor runtime engineered for massive Mixture-of-Experts (MoE) models (e.g. DeepSeek-V3/R1 scale: 671B parameters, 61 layers, 256 routed experts, top-8 active) running across distributed heterogeneous hardware.
 
-Unlike traditional AI libraries that require entire models to be loaded into continuous memory, TorchJIT enables:
-1. **1–3 MB Micro-Sharding**: Automatically slices billion-parameter neural networks into deterministic, immutable content-addressed chunks.
-2. **Zero-Copy POSIX Memory Mapping (`mmap`)**: Maps tensor storage directly from disk or network caches without duplicate memory allocations.
-3. **Pure C ABI & Python Drop-in Compatibility**: High-level Python bindings matching standard PyTorch conventions (`import torchjit as torch`).
-4. **Universal State Coordination**: Synchronizes model manifests with PostgreSQL Transaction Poolers (PgBouncer/Supavisor, Port 6543) or offline embedded SQLite databases.
+Built on audited physical and cryptographic principles, TorchJIT replaces unworkable fine-grained WAN weight streaming with **Co-located Layer-Block Pipelining**, **Native Multi-Token Prediction (MTP) Speculative Rings**, and **Inductively Aligned SMTF v3 Storage**.
+
+### Key Architectural Pillars:
+1. **SMTF v3 (Structured Model Tensor Format)**:
+   - Enforces inductive alignment: $\text{offset}_{i+1} = \text{align}(\text{offset}_i + \text{size}_i, A)$.
+   - 2 MiB alignment for layer bundles (huge-page compatible) and 4 KiB alignment for individual tensors (`O_DIRECT` and io_uring DMA ready).
+   - Zero-copy memory mapping (`mmap`) with zero tensor overlap hazards.
+2. **Layer-Block Pipeline Parallelism**:
+   - Groups 60+ MoE layers into 20–24 contiguous pipeline stages (2–3 layers per 24GB consumer GPU), dropping network legs from 60+ down to ~24.
+   - Retains residual activations in BF16 (14.3 KB per token position), bypassing the Roofline bandwidth trap.
+3. **Native MTP Speculative Ring**:
+   - Places the native 14B Multi-Token Prediction module on the final termination stage, drafting $\gamma = 2$ tokens directly to Stage 1.
+   - Amortizes network round-trips over accepted tokens, achieving **8 to 18 tokens/sec** in pure VRAM swarms.
+4. **Verifiable Compute with Forced-Routing & SPRT**:
+   - Eliminates cross-GPU floating-point non-determinism via forced routing on committed expert IDs.
+   - Employs Wald's Sequential Probability Ratio Test (SPRT) to separate thermal/kernel drift from intentional cheating.
 
 ---
 
@@ -34,9 +45,9 @@ Unlike traditional AI libraries that require entire models to be loaded into con
                  │                                   │
                  ▼                                   ▼
      ┌───────────────────────┐           ┌───────────────────────┐
-     │   tjit::Tensor        │           │  tjit::Chunker        │
-     │   Shape / Strides Math│           │  1-3 MB Micro-Slicer  │
-     │   Fast Transformer Ops│           │  Deterministic CIDv1  │
+     │   tjit::Tensor        │           │  tjit::SMTFBuilder    │
+     │   Shape / Strides Math│           │  SMTF v3 Layout Engine│
+     │   Fast Transformer Ops│           │  2MB/4KB Inductive Pad│
      └───────────┬───────────┘           └───────────┬───────────┘
                  │                                   │
                  └─────────────────┬─────────────────┘
@@ -44,130 +55,33 @@ Unlike traditional AI libraries that require entire models to be loaded into con
                                    ▼
                      ┌───────────────────────────┐
                      │   tjit::Storage           │
-                     │   64-Byte Aligned Alloc   │
+                     │   2MB Huge-Page Aligned   │
                      │   POSIX mmap Zero-Copy    │
-                     │   Cryptographic Hasher    │
+                     │   BLAKE3 Merkle Verifier  │
                      └─────────────┬─────────────┘
                                    │
                                    ▼
-             ================ GLOBAL IPFS FABRIC ================
-             [CID #0: 2MB] ──► [CID #1: 2MB] ──► [CID #2: 2MB]
+                     ┌───────────────────────────┐
+                     │   Pipelined Swarm Link    │
+                     │   RFC 9221 QUIC Datagrams │
+                     │   Burst RaptorQ FEC       │
+                     └───────────────────────────┘
 ```
 
 ---
 
-## Enterprise Capabilities
+## Verification & Architecture Spec
+Read the full audited architectural specification in [docs/ARCHITECTURE_v3.md](docs/ARCHITECTURE_v3.md).
 
-### 1. Cryptographic Content-Addressed Storage (CID)
-Every tensor allocation in TorchJIT carries an immutable cryptographic fingerprint. When weights are stored or transferred, they are addressed strictly by their cryptographic hash:
-```cpp
-auto t = tjit::Tensor::ones({4096, 4096});
-std::string cid = t.cid(); // Deterministic IPFS-compatible CIDv1
-```
-
-### 2. Micro-Sharded Streaming (1–3 MB Window)
-TorchJIT shatters the monolithic model problem by cutting weights into uniform 1–3 MB pieces:
-```python
-from torchjit.chunker import MicroSharder
-
-# Slices a multi-gigabyte binary model into 2MB CID pieces
-manifest = MicroSharder.shard_tensor_file("model_weights.bin", output_dir="./chunks", chunk_size=2*1024*1024)
-
-# Stream chunks on-demand straight into zero-copy virtual memory
-tensor = MicroSharder.lazy_mmap_tensor("./chunks", manifest, [4096, 4096])
-```
-
-### 3. Native C++20 Transformer Kernels
-Built-in SIMD-optimized mathematical primitives for modern LLM architectures:
-- **`matmul`**: Cache-blocked high-efficiency matrix multiplication.
-- **`rms_norm`**: Root Mean Square Layer Normalization with epsilon stability.
-- **`silu`**: Fast element-wise Sigmoid Linear Unit activation.
-- **`add`**: Vectorized in-place or strided addition.
-
----
-
-## Python API Usage
-
-TorchJIT serves as an ultra-fast, drop-in alternative for tensor arithmetic and model slicing:
-
-```python
-import torchjit as torch
-
-# Create tensors
-x = torch.ones([1, 4096])
-w = torch.ones([4096, 4096])
-
-# Execute native transformer layer
-normed = torch.rms_norm(x)
-projected = torch.matmul(normed, w)
-activated = torch.silu(projected)
-out = torch.add(x, activated)
-
-print("Layer Output Shape:", out.shape)
-print("Content Identifier:", out.cid)
-
-# Zero-copy binary persistence
-out.save("checkpoint_layer_0.bin")
-```
-
----
-
-## Directory Layout
-```
-TorchJIT/
-├── include/torchjit/
-│   ├── storage.hpp       # 64-byte aligned virtual memory allocator
-│   ├── tensor.hpp        # Strided multidimensional tensor arithmetic
-│   └── chunker.hpp       # 1-3 MB micro-sharder & CID manifest generator
-├── src/
-│   ├── storage.cpp       # Memory allocation & SHA256 CID generation
-│   ├── tensor.cpp        # Matrix multiplication & transformer kernels
-│   ├── chunker.cpp       # Binary sharding implementation
-│   └── c_api.cpp         # Pure C ABI for language bindings
-├── python/torchjit/
-│   ├── __init__.py       # High-level Python package via ctypes
-│   ├── chunker.py        # Python micro-sharder & lazy streamer
-│   ├── pooler.py         # Universal Tx Pooler & offline SQLite client
-│   └── ipfs_transport.py # Decentralized IPFS gateway rotator
-├── scripts/
-│   └── schema.sql        # Universal PostgreSQL / SQLite swarm schema
-└── tests/
-    ├── test_core.cpp     # C++20 unit & arithmetic tests
-    └── test_sharder.py   # Sharding verification test
-```
-
----
-
-## Build & Installation
-
-### Build from Source (C++20 Shared Library)
 ```bash
-g++ -std=c++20 -O3 -fPIC -shared -Iinclude \
-    src/storage.cpp \
-    src/tensor.cpp \
-    src/chunker.cpp \
-    src/c_api.cpp \
-    -o python/torchjit/libtorchjit.so
-```
-
-### Run Test Suite
-```bash
-# Build and execute native C++ verification
-g++ -std=c++20 -O3 -Iinclude src/storage.cpp src/tensor.cpp src/chunker.cpp tests/test_core.cpp -o test_core
-./test_core
-
-# Execute Python test suite
-python3 tests/test_sharder.py
+# Build test suite
+mkdir -p build && cd build
+cmake ..
+make -j$(nproc)
+ctest --output-on-failure
 ```
 
 ---
 
-## Intellectual Property & Licensing
-**TorchJIT** is an experimental hobby project by @thealidev
-- **License**: [MIT License](LICENSE.md)
-- **Change Date**: 2030-01-01 (Transitions to Apache License 2.0)
-- **Third-Party Attribution**:
-  - Contains architecture concepts derived from PyTorch (BSD-3-Clause License).
-
----
-*Private experimental hobby project.*
+## License
+MIT License • Personal Research & Engineering Project by [@thealidev](https://github.com/thealidev).
