@@ -1,5 +1,5 @@
 # TorchJIT: Native Content-Addressed Tensor Engine & Distributed Inference Fabric
-### High-Performance C++20 Sovereign Deep Learning Runtime
+### High-Performance C++20 Deep Learning Runtime
 Personal Research & Hobby Project • Licensed under **MIT License**
 
 [![Engine](https://img.shields.io/badge/C%2B%2B%20Standard-C%2B%2B20%20ISO-ff4757?style=for-the-badge&logo=c%2B%2B)](include/torchjit)
