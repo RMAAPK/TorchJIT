@@ -16,14 +16,14 @@ Built on audited physical and cryptographic principles, TorchJIT replaces unwork
 
 ### Key Architectural Pillars:
 1. **SMTF v3 (Structured Model Tensor Format)**:
-   - Enforces inductive alignment: $\text{offset}_{i+1} = \text{align}(\text{offset}_i + \text{size}_i, A)$.
+   - Enforces inductive alignment: `offset_{i+1} = align(offset_i + size_i, A)`.
    - 2 MiB alignment for layer bundles (huge-page compatible) and 4 KiB alignment for individual tensors (`O_DIRECT` and io_uring DMA ready).
    - Zero-copy memory mapping (`mmap`) with zero tensor overlap hazards.
 2. **Layer-Block Pipeline Parallelism**:
    - Groups 60+ MoE layers into 20–24 contiguous pipeline stages (2–3 layers per 24GB consumer GPU), dropping network legs from 60+ down to ~24.
    - Retains residual activations in BF16 (14.3 KB per token position), bypassing the Roofline bandwidth trap.
 3. **Native MTP Speculative Ring**:
-   - Places the native 14B Multi-Token Prediction module on the final termination stage, drafting $\gamma = 2$ tokens directly to Stage 1.
+   - Places the native 14B Multi-Token Prediction module on the final termination stage, drafting `gamma = 2` tokens directly to Stage 1.
    - Amortizes network round-trips over accepted tokens, achieving **8 to 18 tokens/sec** in pure VRAM swarms.
 4. **Verifiable Compute with Forced-Routing & SPRT**:
    - Eliminates cross-GPU floating-point non-determinism via forced routing on committed expert IDs.

@@ -9,11 +9,15 @@
 
 ### 1.1 The Insurmountable Failure of Naive Sharding
 Fine-grained per-expert WAN sharding fails on physical laws:
-1. **The WAN Latency Floor:** Sharding individual experts forces $\ge 1$ round-trip per MoE layer. Over 60 layers at 20–40ms WAN RTT:
-   $$T_{\text{token}} \ge 60 \times \text{RTT} \approx 1.2\text{s to } 2.4\text{s minimum (up to 7.2s on global links)}$$
-2. **The Straggler Guarantee ($P \ge 98\%$):**
-   Waiting on 60 layers $\times$ 8 experts = 480 responses per token in sequence-of-maxes yields:
-   $$P(\text{token hits } \ge 1 \text{ p99 event}) = 1 - (1 - 0.01)^{480} \approx \mathbf{99.2\%}$$
+1. **The WAN Latency Floor:** Sharding individual experts forces >=1 round-trip per MoE layer. Over 60 layers at 20–40ms WAN RTT:
+   ```
+   T_token >= 60 * RTT ≈ 1.2s to 2.4s minimum (up to 7.2s on global links)
+   ```
+2. **The Straggler Guarantee (P >= 98%):**
+   Waiting on 60 layers * 8 experts = 480 responses per token in sequence-of-maxes yields:
+   ```
+   P(token hits >= 1 p99 event) = 1 - (1 - 0.01)^480 ≈ 99.2%
+   ```
 3. **Prefill WAN Explosion:** An 8K prompt requires ~24–117 GB of all-to-all activation transfers across the mesh, freezing token 1 by minutes.
 4. **MoE Speculative Sparsity Collapse:** On dense models, speculative verification is cheap. On a 256-expert MoE, verifying $\gamma = 4$ tokens touches ~38 distinct experts per layer instead of 8 ($4.7\times$ the memory reads). If routed experts sit in host DDR5 (70 GB/s bandwidth), reading 14 GB per stage takes ~200ms, making speculative verification **1.7× slower than regular autoregressive decode**.
 
@@ -55,11 +59,13 @@ Fine-grained per-expert WAN sharding fails on physical laws:
 
 ### 4.1 Inductive Huge-Page & OS Page Alignment
 To prevent tensor overlap and eliminate TLB misses when mapping 90+ GB shard bundles:
-$$\text{offset}_0 = \text{align}(\text{header\_end}, A_{\text{huge}})$$
-$$\text{offset}_{i+1} = \text{align}(\text{offset}_i + \text{size}_i, A)$$
+```
+offset_0 = align(header_end, A_huge)
+offset_{i+1} = align(offset_i + size_i, A)
+```
 Where:
-- $A_{\text{huge}} = 2\text{ MiB}$ ($2{,}097{,}152\text{ bytes}$) for layer block regions and major stage boundaries.
-- $A_{\text{page}} = 4\text{ KiB}$ ($4{,}096\text{ bytes}$) for individual expert/attention tensors (enabling `O_DIRECT` and direct io_uring DMA).
+- `A_huge = 2 MiB` (2,097,152 bytes) for layer block regions and major stage boundaries.
+- `A_page = 4 KiB` (4,096 bytes) for individual expert/attention tensors (enabling `O_DIRECT` and direct io_uring DMA).
 - All padding bytes must be zeroed and strictly covered by the BLAKE3 Merkle manifest.
 
 ### 4.2 Storage Allocation Profiles
@@ -87,22 +93,26 @@ Where:
 
 ### 6.1 Deterministic Truncated-Support Inverse-CDF Sampling
 - Random sampling variable is bound to position:
-  $$u_{pos} = \text{PRF}(\text{client\_seed}, \text{seq\_id}, pos)$$
-- Sampling is evaluated over truncated top-K support ($k \le K$), ordered monotonically by **token-ID**.
+  ```
+  u_pos = PRF(client_seed, seq_id, pos)
+  ```
+- Sampling is evaluated over truncated top-K support (`k <= K`), ordered monotonically by **token-ID**.
 - Eliminates draft-gaming attacks: output token is provably identical whether generated with or without speculation.
 - Client validates sampling directly on every token using committed top-K logits (~200 B payload).
-- Stage 24 is mirrored by a permanent shadow ($p=1$) rotated per epoch via public beacon randomness. Disagreements escalate to an independent third verifier in FP32.
+- Stage 24 is mirrored by a permanent shadow (`p = 1`) rotated per epoch via public beacon randomness. Disagreements escalate to an independent third verifier in FP32.
 
 ### 6.2 Forced-Routing MoE Recompute
-- When auditing Stage $i$, the verifier **forces** the worker's committed `selected_expert_ids[8]`, eliminating cross-GPU floating-point router flips.
+- When auditing Stage `i`, the verifier **forces** the worker's committed `selected_expert_ids[8]`, eliminating cross-GPU floating-point router flips.
 - Verifier independently recomputes normalized gate weights (including `e_score_correction_bias` and group selection over top-4 of 8 groups) to prevent lazy zero-gate exploits.
-- Distinct checks are enforced on $\Delta^{attn}_\ell$ and $\Delta^{moe}_\ell$ with outlier dimensions masked.
+- Distinct checks are enforced on `Δ_attn` and `Δ_moe` with outlier dimensions masked.
 
 ### 6.3 Sequential Probability Ratio Test (SPRT)
 To prevent falsely accusing honest workers running on consumer GPUs with thermal or kernel drift:
-$$\Lambda \leftarrow \Lambda + z \ln\frac{p_1}{p_0} + (1-z) \ln\frac{1-p_1}{1-p_0}$$
+```
+Lambda <- Lambda + z * ln(p1 / p0) + (1 - z) * ln((1 - p1) / (1 - p0))
+```
 Where:
-- $p_0 = 10^{-4}$ (honest exceedance rate at p99.99 calibration).
-- $p_1 = 10^{-2}$ (minimum cheating rate to catch).
-- **Level 1 Ejection ($\Lambda \ge 20.7$):** Node is safely ejected and stake frozen without immediate slashing.
-- **Level 2 Slashing:** Requires independent FP32 recompute exceeding $10\varepsilon$ or proof of a known structural shortcut.
+- `p0 = 10^-4` (honest exceedance rate at p99.99 calibration).
+- `p1 = 10^-2` (minimum cheating rate to catch).
+- **Level 1 Ejection (`Lambda >= 20.7`):** Node is safely ejected and stake frozen without immediate slashing.
+- **Level 2 Slashing:** Requires independent FP32 recompute exceeding `10 * epsilon` or proof of a known structural shortcut.
