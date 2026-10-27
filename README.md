@@ -1,6 +1,6 @@
 # TorchJIT: Native Content-Addressed Tensor Engine & Decentralized JIT Fabric
 ### Enterprise C++20 Sovereign Deep Learning Runtime
-**A Product of RMAA Holdings Inc.** • Licensed under **Business Source License 1.1 (BSL 1.1)**
+**A Product of RMAA Holdings** • Licensed under **Business Source License 1.1 (BSL 1.1)**
 
 [![Engine](https://img.shields.io/badge/C%2B%2B%20Standard-C%2B%2B20%20ISO-ff4757?style=for-the-badge&logo=c%2B%2B)](include/torchjit)
 [![Storage](https://img.shields.io/badge/Storage-IPFS%20CIDv1%20Hashed-2ed573?style=for-the-badge&logo=ipfs)](https://ipfs.tech)
@@ -163,11 +163,11 @@ python3 tests/test_sharder.py
 ---
 
 ## Intellectual Property & Licensing
-**TorchJIT** is an enterprise technology asset developed by **RMAA Holdings Inc.**
+**TorchJIT** is an enterprise technology asset developed by **RMAA Holdings**
 - **License**: [Business Source License 1.1 (BSL 1.1)](LICENSE.md)
 - **Change Date**: 2030-01-01 (Transitions to Apache License 2.0)
 - **Third-Party Attribution**:
   - Contains architecture concepts derived from PyTorch (BSD-3-Clause License).
 
 ---
-*© 2026 RMAA Holdings Inc. All rights reserved. Sovereign AI Infrastructure.*
+*© 2026 RMAA Holdings All rights reserved. Sovereign AI Infrastructure.*
