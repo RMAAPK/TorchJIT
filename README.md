@@ -1,7 +1,8 @@
-# TorchJIT: Native Content-Addressed Tensor Engine & Distributed Inference Fabric
-### High-Performance C++20 Deep Learning Runtime
+# TorchJIT (v0-beta): Native Content-Addressed Tensor Engine & Distributed Inference Fabric
+### High-Performance C++20 Deep Learning Runtime • Pre-Release v0-beta
 Personal Research & Hobby Project • Licensed under **MIT License**
 
+[![Version](https://img.shields.io/badge/Release-v0--beta%20(Experimental)-orange?style=for-the-badge)](https://github.com/thealidev/TJIT)
 [![Engine](https://img.shields.io/badge/C%2B%2B%20Standard-C%2B%2B20%20ISO-ff4757?style=for-the-badge&logo=c%2B%2B)](include/torchjit)
 [![Storage](https://img.shields.io/badge/Storage-SMTF%20v3%20Aligned-2ed573?style=for-the-badge)](docs/ARCHITECTURE_v3.md)
 [![Memory](https://img.shields.io/badge/Memory-2MB%20Huge--Page%20mmap-00d2d3?style=for-the-badge)](src/tensor.cpp)
