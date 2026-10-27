@@ -23,7 +23,7 @@ def test_full_ipfs_pipeline():
     print(f"Generated IPFS Chunk CID: {cid}")
 
     # Database records ONLY CID hash and encryption key (ZERO weights in DB!)
-    decryption_key = "rmaa_sovereign_secret_key"
+    decryption_key = "tjit_demo_secret_key"
     pooler = StatePooler()
     pooler.register_chunk_hash(
         model_id="rmaa-500b-deepseek",
