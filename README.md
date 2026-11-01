@@ -1,5 +1,8 @@
 # TorchJIT (v0-beta): Native Content-Addressed Tensor Engine & Distributed Inference Fabric
 ### High-Performance C++20 Deep Learning Runtime • Pre-Release v0-beta
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23859083.svg)](https://doi.org/10.5281/zenodo.23859083)
+
 Personal Research & Hobby Project • Licensed under **MIT License**
 
 [![Version](https://img.shields.io/badge/Release-v0--beta%20(Experimental)-orange?style=for-the-badge)](https://github.com/thealidev/TJIT)
